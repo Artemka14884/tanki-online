@@ -1,0 +1,12 @@
+{
+  "name": "tanks-online",
+  "version": "1.0.0",
+  "description": "Онлайн танчики для игры с друзьями по сети (ПК и телефон)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
