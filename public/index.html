@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Танчики Онлайн</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+    background:#1b1f16; font-family: 'Segoe UI', Arial, sans-serif; }
+
+  /* ---------- экран подключения ---------- */
+  #connectScreen {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(circle at 50% 30%, #2b3a22, #14180f 75%);
+    z-index: 50;
+  }
+  .panel {
+    background:#232b1c; border:2px solid #4a5c34; border-radius:14px;
+    padding:28px 30px; width:min(90vw, 380px); box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+  .panel h1 { color:#c8e693; margin:0 0 4px; font-size:28px; text-align:center; letter-spacing:1px;}
+  .panel .sub { color:#8a9a70; text-align:center; margin-bottom:20px; font-size:13px;}
+  .panel label { color:#a9c088; font-size:13px; display:block; margin:12px 0 4px;}
+  .panel input {
+    width:100%; padding:10px 12px; border-radius:8px; border:1px solid #4a5c34;
+    background:#181d12; color:#e8f0d8; font-size:15px; outline:none;
+  }
+  .panel input:focus{ border-color:#8bc34a; }
+  .panel button {
+    width:100%; margin-top:20px; padding:12px; border:none; border-radius:8px;
+    background:linear-gradient(180deg,#8bc34a,#689f38); color:#132000; font-weight:700;
+    font-size:16px; cursor:pointer; letter-spacing:.5px;
+  }
+  .panel button:active{ transform: translateY(1px); }
+  .panel .hint{ color:#6b7d55; font-size:11px; margin-top:14px; line-height:1.5; text-align:center;}
+  #status{ color:#e57373; text-align:center; min-height:18px; font-size:13px; margin-top:8px;}
+
+  /* ---------- игра ---------- */
+  #gameContainer { position:fixed; inset:0; display:none; }
+  canvas { display:block; background:#2c3320; touch-action:none; }
+
+  #hud { position:fixed; top:10px; left:10px; z-index:20; pointer-events:none; }
+  #hpWrap { width:180px; height:20px; background:#00000066; border-radius:6px; overflow:hidden; border:1px solid #000;}
+  #hpBar { height:100%; width:100%; background:linear-gradient(90deg,#43a047,#8bc34a); transition:width .15s;}
+  #hpLabel{ color:#fff; font-size:12px; margin-top:3px; text-shadow:0 1px 2px #000; }
+  #deadLabel{ color:#ff5252; font-size:16px; font-weight:700; margin-top:4px; text-shadow:0 1px 3px #000; display:none;}
+
+  #scoreBoard{ position:fixed; top:10px; right:10px; z-index:20; color:#fff; font-size:12px;
+    background:#00000055; padding:8px 10px; border-radius:8px; text-align:right; min-width:150px; pointer-events:none;}
+  #scoreBoard .row{ display:flex; justify-content:space-between; gap:10px; opacity:.9;}
+
+  #killFeed{ position:fixed; top:100px; right:10px; z-index:20; color:#fff; font-size:12px;
+    text-align:right; pointer-events:none; text-shadow:0 1px 2px #000;}
+  #killFeed div{ margin-bottom:3px; }
+
+  #minimap{ position:fixed; bottom:10px; right:10px; z-index:20; border:2px solid #00000088;
+    border-radius:6px; background:#1c2214aa; pointer-events:none;}
+
+  /* ---------- мобильное управление ---------- */
+  #mobileControls{ display:none; }
+  .joyZone{ position:fixed; bottom:24px; width:130px; height:130px; border-radius:50%;
+    background:#ffffff14; border:2px solid #ffffff33; z-index:25; touch-action:none;}
+  #joyMove{ left:24px; }
+  #joyAim{ right:24px; }
+  .joyStick{ position:absolute; width:56px; height:56px; border-radius:50%;
+    background:#ffffff55; top:37px; left:37px; pointer-events:none;}
+  #fireBtn{
+    position:fixed; right:44px; bottom:172px; width:80px; height:80px; border-radius:50%;
+    background:radial-gradient(circle,#ff7043,#d84315); border:3px solid #ffffff55;
+    color:#fff; font-weight:700; font-size:14px; z-index:26; touch-action:none;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 4px 10px #0006;
+  }
+
+  @media (max-width:820px), (pointer:coarse) {
+    #mobileControls{ display:block; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===================== ЭКРАН ПОДКЛЮЧЕНИЯ ===================== -->
+  <div id="connectScreen">
+    <div class="panel">
+      <h1>🎯 ТАНЧИКИ ОНЛАЙН</h1>
+      <div class="sub">Играй с друзьями по сети</div>
+
+      <label>Ваше имя</label>
+      <input id="nameInput" maxlength="16" placeholder="Игрок" value="">
+
+      <label>Адрес сервера</label>
+      <input id="serverInput" placeholder="ws://192.168.1.10:8080" value="">
+
+      <button id="connectBtn">▶ Играть</button>
+      <div id="status"></div>
+      <div class="hint">
+        Хост запускает сервер (node server.js) и даёт друзьям свой IP-адрес и порт.<br>
+        В локальной сети: ws://IP-хоста:8080
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== ИГРА ===================== -->
+  <div id="gameContainer">
+    <canvas id="canvas"></canvas>
+
+    <div id="hud">
+      <div id="hpWrap"><div id="hpBar"></div></div>
+      <div id="hpLabel">100 / 100</div>
+      <div id="deadLabel">УНИЧТОЖЕН — возрождение через 3с</div>
+    </div>
+
+    <div id="scoreBoard"></div>
+    <div id="killFeed"></div>
+    <canvas id="minimap" width="180" height="120"></canvas>
+
+    <div id="mobileControls">
+      <div class="joyZone" id="joyMove"><div class="joyStick" id="joyMoveStick"></div></div>
+      <div class="joyZone" id="joyAim"><div class="joyStick" id="joyAimStick"></div></div>
+      <div id="fireBtn">ОГОНЬ</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------------- Состояние клиента ----------------
+  let ws = null;
+  let myId = null;
+  let mapW = 3600, mapH = 2400;
+  let obstacles = [];
+  let TANK_RADIUS = 20, BULLET_RADIUS = 5, MAX_HP = 100;
+
+  let players = [];
+  let bullets = [];
+  let killFeed = [];
+  let chatLog = [];
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const minimap = document.getElementById('minimap');
+  const mctx = minimap.getContext('2d');
+
+  function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------------- Подключение ----------------
+  const connectScreen = document.getElementById('connectScreen');
+  const gameContainer = document.getElementById('gameContainer');
+  const statusEl = document.getElementById('status');
+  const nameInput = document.getElementById('nameInput');
+  const serverInput = document.getElementById('serverInput');
+
+  // адрес по умолчанию — тот же хост, с которого открыта страница
+  const defaultProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  serverInput.value = defaultProto + location.host;
+  nameInput.value = 'Игрок' + Math.floor(Math.random()*900+100);
+
+  document.getElementById('connectBtn').addEventListener('click', connect);
+  serverInput.addEventListener('keydown', e=>{ if(e.key==='Enter') connect(); });
+  nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') connect(); });
+
+  function connect(){
+    const url = serverInput.value.trim() || (defaultProto + location.host);
+    const name = nameInput.value.trim() || 'Игрок';
+    statusEl.textContent = 'Подключение...';
+    try{
+      ws = new WebSocket(url);
+    }catch(e){
+      statusEl.textContent = 'Некорректный адрес сервера';
+      return;
+    }
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({t:'join', name}));
+    };
+    ws.onerror = () => {
+      statusEl.textContent = 'Не удалось подключиться к серверу';
+    };
+    ws.onclose = () => {
+      if (connectScreen.style.display !== 'flex') {
+        connectScreen.style.display = 'flex';
+        gameContainer.style.display = 'none';
+        statusEl.textContent = 'Соединение с сервером потеряно';
+      }
+    };
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.t === 'welcome') {
+        myId = msg.id;
+        mapW = msg.map.w; mapH = msg.map.h;
+        obstacles = msg.obstacles;
+        TANK_RADIUS = msg.constants.tankRadius;
+        BULLET_RADIUS = msg.constants.bulletRadius;
+        MAX_HP = msg.constants.maxHp;
+        connectScreen.style.display = 'none';
+        gameContainer.style.display = 'block';
+        buildBgPattern();
+        requestAnimationFrame(loop);
+      } else if (msg.t === 'state') {
+        players = msg.players;
+        bullets = msg.bullets;
+        killFeed = msg.killFeed || [];
+      } else if (msg.t === 'chat') {
+        chatLog.push(msg.text);
+      }
+    };
+  }
+
+  // ---------------- Ввод: клавиатура (ПК) ----------------
+  const keys = { up:false, down:false, left:false, right:false };
+  window.addEventListener('keydown', e=>{
+    if(e.code==='KeyW'||e.code==='ArrowUp') keys.up=true;
+    if(e.code==='KeyS'||e.code==='ArrowDown') keys.down=true;
+    if(e.code==='KeyA'||e.code==='ArrowLeft') keys.left=true;
+    if(e.code==='KeyD'||e.code==='ArrowRight') keys.right=true;
+    if(e.code==='Space'){ sendShoot(); e.preventDefault(); }
+  });
+  window.addEventListener('keyup', e=>{
+    if(e.code==='KeyW'||e.code==='ArrowUp') keys.up=false;
+    if(e.code==='KeyS'||e.code==='ArrowDown') keys.down=false;
+    if(e.code==='KeyA'||e.code==='ArrowLeft') keys.left=false;
+    if(e.code==='KeyD'||e.code==='ArrowRight') keys.right=false;
+  });
+
+  let mouseWorld = {x:0,y:0};
+  canvas.addEventListener('mousemove', e=>{
+    mouseWorld.x = camX + e.clientX;
+    mouseWorld.y = camY + e.clientY;
+  });
+  canvas.addEventListener('mousedown', ()=> sendShoot());
+
+  // ---------------- Ввод: мобильные джойстики ----------------
+  let moveVec = {x:0,y:0};
+  let aimAngle = 0;
+  let aiming = false;
+
+  function setupJoystick(zoneId, stickId, onMove, onEnd){
+    const zone = document.getElementById(zoneId);
+    const stick = document.getElementById(stickId);
+    let active = false, startX=0, startY=0, touchId=null;
+    const RADIUS = 50;
+
+    function handleStart(e){
+      const t = e.changedTouches ? e.changedTouches[0] : e;
+      touchId = t.identifier;
+      active = true;
+      const rect = zone.getBoundingClientRect();
+      startX = rect.left + rect.width/2;
+      startY = rect.top + rect.height/2;
+      e.preventDefault();
+    }
+    function handleMove(e){
+      if(!active) return;
+      let t = null;
+      if(e.changedTouches){
+        for(const touch of e.changedTouches){ if(touch.identifier===touchId){ t=touch; break; } }
+        if(!t) return;
+      } else t = e;
+      let dx = t.clientX - startX, dy = t.clientY - startY;
+      const dist = Math.hypot(dx,dy);
+      if(dist > RADIUS){ dx = dx/dist*RADIUS; dy = dy/dist*RADIUS; }
+      stick.style.left = (37+dx) + 'px';
+      stick.style.top = (37+dy) + 'px';
+      onMove(dx/RADIUS, dy/RADIUS);
+      e.preventDefault();
+    }
+    function handleEnd(e){
+      if(!active) return;
+      active = false;
+      stick.style.left='37px'; stick.style.top='37px';
+      onEnd();
+      e.preventDefault();
+    }
+
+    zone.addEventListener('touchstart', handleStart, {passive:false});
+    zone.addEventListener('touchmove', handleMove, {passive:false});
+    zone.addEventListener('touchend', handleEnd, {passive:false});
+    zone.addEventListener('touchcancel', handleEnd, {passive:false});
+  }
+
+  setupJoystick('joyMove','joyMoveStick',
+    (nx,ny)=>{ moveVec.x = nx; moveVec.y = ny; },
+    ()=>{ moveVec.x = 0; moveVec.y = 0; });
+
+  setupJoystick('joyAim','joyAimStick',
+    (nx,ny)=>{ if(Math.hypot(nx,ny) > 0.15){ aimAngle = Math.atan2(ny,nx); aiming = true; } },
+    ()=>{ aiming = false; });
+
+  const fireBtn = document.getElementById('fireBtn');
+  let fireHold = null;
+  function startFire(e){ sendShoot(); fireHold = setInterval(sendShoot, 350); e.preventDefault(); }
+  function stopFire(e){ if(fireHold){ clearInterval(fireHold); fireHold=null; } if(e) e.preventDefault(); }
+  fireBtn.addEventListener('touchstart', startFire, {passive:false});
+  fireBtn.addEventListener('touchend', stopFire, {passive:false});
+  fireBtn.addEventListener('touchcancel', stopFire, {passive:false});
+  fireBtn.addEventListener('mousedown', startFire);
+  window.addEventListener('mouseup', stopFire);
+
+  function sendShoot(){
+    if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({t:'shoot'}));
+  }
+
+  // ---------------- Отправка ввода на сервер ----------------
+  let lastSentInput = {mx:0,my:0};
+  setInterval(()=>{
+    if(!ws || ws.readyState!==WebSocket.OPEN) return;
+    let mx=0,my=0;
+    if(keys.left) mx-=1;
+    if(keys.right) mx+=1;
+    if(keys.up) my-=1;
+    if(keys.down) my+=1;
+    if(mx===0 && my===0 && (moveVec.x||moveVec.y)){ mx=moveVec.x; my=moveVec.y; }
+    const len = Math.hypot(mx,my);
+    if(len>1){ mx/=len; my/=len; }
+    if(mx!==lastSentInput.mx || my!==lastSentInput.my){
+      ws.send(JSON.stringify({t:'input', mx, my}));
+      lastSentInput = {mx,my};
+    }
+  }, 50);
+
+  let lastSentAim = null;
+  setInterval(()=>{
+    if(!ws || ws.readyState!==WebSocket.OPEN) return;
+    const me = players.find(p=>p.id===myId);
+    let angle;
+    if (aiming) angle = aimAngle;
+    else if (me) angle = Math.atan2(mouseWorld.y-me.y, mouseWorld.x-me.x);
+    else return;
+    if (angle !== lastSentAim) {
+      ws.send(JSON.stringify({t:'aim', angle}));
+      lastSentAim = angle;
+    }
+  }, 50);
+
+  // ---------------- Процедурные текстуры ----------------
+  let bgPattern = null;
+  function buildBgPattern(){
+    const p = document.createElement('canvas');
+    p.width = 64; p.height = 64;
+    const pc = p.getContext('2d');
+    pc.fillStyle = '#33512a'; pc.fillRect(0,0,64,64);
+    pc.fillStyle = '#3a5c30';
+    for(let i=0;i<40;i++){
+      pc.fillRect(Math.random()*64, Math.random()*64, 2, 2);
+    }
+    pc.strokeStyle = '#2c4524'; pc.lineWidth=1;
+    pc.strokeRect(0,0,64,64);
+    bgPattern = ctx.createPattern(p, 'repeat');
+  }
+
+  function drawObstacle(o){
+    const sx = o.x - camX, sy = o.y - camY;
+    if (sx+o.w < -50 || sy+o.h < -50 || sx > canvas.width+50 || sy > canvas.height+50) return;
+
+    if (o.type === 'wall') {
+      const grad = ctx.createLinearGradient(sx,sy,sx,sy+o.h);
+      grad.addColorStop(0,'#8d8d86'); grad.addColorStop(1,'#5c5c56');
+      ctx.fillStyle = grad;
+      ctx.fillRect(sx,sy,o.w,o.h);
+      ctx.strokeStyle = '#3d3d38'; ctx.lineWidth=3;
+      ctx.strokeRect(sx,sy,o.w,o.h);
+      ctx.strokeStyle = '#00000033'; ctx.lineWidth=1;
+      for(let i=8;i<Math.max(o.w,o.h);i+=14){
+        ctx.beginPath();
+        ctx.moveTo(sx+Math.max(0,i-o.h), sy+Math.min(i,o.h));
+        ctx.lineTo(sx+Math.min(i,o.w), sy+Math.max(0,i-o.w));
+        ctx.stroke();
+      }
+    } else if (o.type === 'tree') {
+      const cx = sx+o.w/2, cy = sy+o.h/2, r = o.w/2;
+      ctx.fillStyle = '#5b3a22';
+      ctx.fillRect(cx-4, cy, 8, r);
+      ctx.fillStyle = '#2e6b2e';
+      ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill();
+      ctx.fillStyle = '#3f8a3f';
+      ctx.beginPath(); ctx.arc(cx-r*0.25,cy-r*0.25,r*0.65,0,7); ctx.fill();
+    } else { // crate
+      ctx.fillStyle = '#8a5a2b';
+      ctx.fillRect(sx,sy,o.w,o.h);
+      ctx.strokeStyle = '#5c3a1a'; ctx.lineWidth=3;
+      ctx.strokeRect(sx,sy,o.w,o.h);
+      ctx.beginPath();
+      ctx.moveTo(sx,sy); ctx.lineTo(sx+o.w,sy+o.h);
+      ctx.moveTo(sx+o.w,sy); ctx.lineTo(sx,sy+o.h);
+      ctx.lineWidth=2; ctx.stroke();
+    }
+  }
+
+  function drawTank(p){
+    const sx = p.x - camX, sy = p.y - camY;
+    if (sx < -60 || sy < -60 || sx > canvas.width+60 || sy > canvas.height+60) return;
+    if (!p.alive) return;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+
+    // корпус
+    ctx.save();
+    ctx.rotate(p.angle);
+    ctx.fillStyle = p.color;
+    ctx.strokeStyle = '#00000088'; ctx.lineWidth = 2;
+    roundRect(ctx, -18, -13, 36, 26, 5);
+    ctx.fill(); ctx.stroke();
+    // гусеницы
+    ctx.fillStyle = '#00000055';
+    ctx.fillRect(-18,-16,36,5);
+    ctx.fillRect(-18,11,36,5);
+    ctx.restore();
+
+    // башня
+    ctx.save();
+    ctx.rotate(p.turret);
+    ctx.fillStyle = shade(p.color, -20);
+    ctx.beginPath(); ctx.arc(0,0,11,0,7); ctx.fill();
+    ctx.strokeStyle='#00000088'; ctx.stroke();
+    ctx.fillRect(0,-3.5,24,7);
+    ctx.restore();
+
+    ctx.restore();
+
+    // ник + хп
+    ctx.font = '12px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#000000aa';
+    ctx.fillText(p.name, sx+1, sy-27+1);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(p.name, sx, sy-27);
+
+    const barW=34;
+    ctx.fillStyle = '#00000088';
+    ctx.fillRect(sx-barW/2, sy-24, barW, 5);
+    ctx.fillStyle = p.hp>50?'#8bc34a':(p.hp>20?'#ffb300':'#e53935');
+    ctx.fillRect(sx-barW/2, sy-24, barW*(p.hp/MAX_HP), 5);
+  }
+
+  function drawBullet(b){
+    const sx = b.x-camX, sy=b.y-camY;
+    if (sx<-20||sy<-20||sx>canvas.width+20||sy>canvas.height+20) return;
+    ctx.save();
+    ctx.translate(sx,sy);
+    const grad = ctx.createRadialGradient(0,0,0,0,0,BULLET_RADIUS*2.2);
+    grad.addColorStop(0,'#fff59d'); grad.addColorStop(1,'#ff6f0000');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(0,0,BULLET_RADIUS*2.2,0,7); ctx.fill();
+    ctx.fillStyle = '#ffca28';
+    ctx.beginPath(); ctx.arc(0,0,BULLET_RADIUS,0,7); ctx.fill();
+    ctx.restore();
+  }
+
+  function roundRect(c,x,y,w,h,r){
+    c.beginPath();
+    c.moveTo(x+r,y);
+    c.arcTo(x+w,y,x+w,y+h,r);
+    c.arcTo(x+w,y+h,x,y+h,r);
+    c.arcTo(x,y+h,x,y,r);
+    c.arcTo(x,y,x+w,y,r);
+    c.closePath();
+  }
+  function shade(hex, percent){
+    const n = parseInt(hex.slice(1),16);
+    let r=(n>>16)+percent, g=((n>>8)&0xff)+percent, b=(n&0xff)+percent;
+    r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
+    return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+  }
+
+  // ---------------- Камера ----------------
+  let camX=0, camY=0;
+
+  // ---------------- HUD ----------------
+  const hpBar = document.getElementById('hpBar');
+  const hpLabel = document.getElementById('hpLabel');
+  const deadLabel = document.getElementById('deadLabel');
+  const scoreBoard = document.getElementById('scoreBoard');
+  const killFeedEl = document.getElementById('killFeed');
+
+  function updateHud(){
+    const me = players.find(p=>p.id===myId);
+    if(me){
+      hpBar.style.width = Math.max(0,(me.hp/MAX_HP*100)) + '%';
+      hpLabel.textContent = `${Math.max(0,me.hp)} / ${MAX_HP}`;
+      deadLabel.style.display = me.alive ? 'none' : 'block';
+    }
+    const sorted = [...players].sort((a,b)=>b.kills-a.kills).slice(0,6);
+    scoreBoard.innerHTML = '<b>🏆 Игроки</b>' + sorted.map(p=>
+      `<div class="row"><span>${escapeHtml(p.name)}</span><span>${p.kills} / ${p.deaths}</span></div>`
+    ).join('');
+
+    killFeedEl.innerHTML = killFeed.slice(-5).map(k=>
+      `<div>💥 ${escapeHtml(k.killer)} → ${escapeHtml(k.victim)}</div>`
+    ).join('');
+  }
+  function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function drawMinimap(){
+    mctx.clearRect(0,0,minimap.width,minimap.height);
+    const sx = minimap.width/mapW, sy = minimap.height/mapH;
+    mctx.fillStyle = '#00000055';
+    mctx.fillRect(0,0,minimap.width,minimap.height);
+    for(const o of obstacles){
+      if(o.type!=='wall') continue;
+      mctx.fillStyle = '#ffffff33';
+      mctx.fillRect(o.x*sx, o.y*sy, Math.max(1,o.w*sx), Math.max(1,o.h*sy));
+    }
+    for(const p of players){
+      if(!p.alive) continue;
+      mctx.fillStyle = p.id===myId ? '#fff' : p.color;
+      mctx.beginPath();
+      mctx.arc(p.x*sx, p.y*sy, p.id===myId?3.5:2.5, 0, 7);
+      mctx.fill();
+    }
+  }
+
+  // ---------------- Главный цикл рендера ----------------
+  function loop(){
+    const me = players.find(p=>p.id===myId);
+    if(me){
+      camX = Math.max(0, Math.min(mapW-canvas.width, me.x - canvas.width/2));
+      camY = Math.max(0, Math.min(mapH-canvas.height, me.y - canvas.height/2));
+    }
+
+    ctx.fillStyle = bgPattern || '#33512a';
+    ctx.save();
+    ctx.translate(-camX % 64, -camY % 64);
+    ctx.fillRect(camX%64 - 64, camY%64 - 64, canvas.width+128, canvas.height+128);
+    ctx.restore();
+
+    for(const o of obstacles) drawObstacle(o);
+    for(const b of bullets) drawBullet(b);
+    for(const p of players) drawTank(p);
+
+    updateHud();
+    drawMinimap();
+
+    requestAnimationFrame(loop);
+  }
+
+})();
+</script>
+</body>
+</html>
