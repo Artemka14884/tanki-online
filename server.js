@@ -1,4 +1,3 @@
-cat > /home/claude/tanks-online/server.js << 'SERVEREOF'
 // ==========================================================
 //  TANKS ONLINE - сервер
 //  Обычный бой (FFA) + командный бой по комнатам (роли,
@@ -625,5 +624,3 @@ server.listen(PORT, () => {
   console.log(`  Для друзей в одной сети: http://<твой-IP>:${PORT}`);
   console.log(`  Раунд: ${MATCH_DURATION_MS/1000}с | Лимит игроков: ${MAX_PLAYERS_PER_ROOM} | Пароль панели хоста: ${ADMIN_PASSWORD}\n`);
 });
-SERVEREOF
-node -c /home/claude/tanks-online/server.js && echo "SYNTAX OK"
